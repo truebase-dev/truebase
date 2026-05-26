@@ -21,7 +21,7 @@ export default function App() {
   const [estimatedCostBasis, setEstimatedCostBasis] = useState('0.51');
 
   // Projection State
-  const [projectionTranche, setProjectionTranche] = useState(100); // Default amount to sell per target
+  const [projectionTranche, setProjectionTranche] = useState(100); 
   const targetTiers = [5000, 8000, 16000, 21000];
 
   const fetchState = () => {
@@ -93,7 +93,6 @@ export default function App() {
     <div style={{ padding: '24px', backgroundColor: '#090d16', color: '#fff', minHeight: '100vh', fontFamily: 'system-ui, sans-serif' }}>
       <h1 style={{ letterSpacing: '2px', color: '#f8fafc' }}>TRUEBASE: Master Vault</h1>
       
-      {/* Visual Command Center: Exit Projections */}
       <div style={{ marginBottom: '30px', padding: '20px', backgroundColor: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
           <h2 style={{ margin: 0, fontSize: '18px', color: '#38bdf8' }}>Target Trajectory Command Center</h2>
@@ -114,11 +113,9 @@ export default function App() {
             const costBasis = projectionTranche * liveDCA;
             const grossCryptoProfit = grossProceeds - costBasis;
             
-            // The 10% haircut is strictly applied to the crypto profit, not total volume
             const haircutAmount = grossCryptoProfit > 0 ? (grossCryptoProfit * 0.10) : 0;
             const taxableProfit = grossCryptoProfit - haircutAmount;
             
-            // Combined ~24% rate (15% Fed + ~4.9% NM State + 3.8% NIIT for high brackets)
             const estimatedTax = taxableProfit > 0 ? (taxableProfit * 0.24) : 0; 
             const netProfit = taxableProfit - estimatedTax;
 
@@ -141,7 +138,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Infrastructure Node Sync UI */}
       <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#1e293b', borderRadius: '8px' }}>
         <h3 style={{ margin: '0 0 5px 0' }}>Network Sync Engine</h3>
         <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: 0 }}>Define internal custody addresses to preserve DCA on self-transfers.</p>
