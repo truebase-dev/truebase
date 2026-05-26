@@ -1,25 +1,50 @@
-import { useState } from 'react';
-
-// Hardcoded Tier Structure for V1
-const BASE_FEE = 0.60; 
-const NEXT_TIER_FEE = 0.40;
-const TIER_TARGET = 10000;
+import { useState, useEffect } from 'react';
 
 export default function App() {
   const [isTrueBaseClean, setIsTrueBaseClean] = useState(true);
   const [thirtyDayVolume, setThirtyDayVolume] = useState(8500);
+  const [metrics, setMetrics] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Fee optimization calculations
+  // Fetch real-time metrics from your live Hono backend engine
+  useEffect(() => {
+    fetch('/api/analytics')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setMetrics(data.metrics);
+          setThirtyDayVolume(data.metrics.thirtyDayVolume);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Error linking to backend engine:", err);
+        setLoading(false);
+      });
+  }, []);
+
+  // Recalculate tier targets dynamically if user tests the volume slider
+  const TIER_TARGET = metrics?.tierTarget || 10000;
+  const BASE_FEE = metrics?.currentFee || 0.60;
+  const NEXT_TIER_FEE = 0.40;
+  
   const feeGap = Math.max(0, TIER_TARGET - thirtyDayVolume);
   const currentFee = thirtyDayVolume >= TIER_TARGET ? NEXT_TIER_FEE : BASE_FEE;
   const progressPercent = Math.min(100, (thirtyDayVolume / TIER_TARGET) * 100);
 
-  // Asset Ledger Audit Trail Data
   const ledgerData = [
     { id: 1, asset: 'XRP', type: 'Purchase', venue: 'Coinbase Advanced', amount: '10,000', dca: '$0.50', status: 'Settled' },
     { id: 2, asset: 'XRP', type: 'Self-Transfer', venue: 'Coinbase → Robinhood', amount: '5,000', dca: isTrueBaseClean ? '$0.50 (Locked)' : '$0.58 (Corrupted)', status: 'Non-Taxable Flow' },
     { id: 3, asset: 'XRP', type: 'Purchase', venue: 'Coinbase Advanced', amount: '2,500', dca: isTrueBaseClean ? '$0.51' : '$0.64 (Skewed)', status: 'Settled' }
   ];
+
+  if (loading) {
+    return (
+      <div style={{ backgroundColor: '#090d16', color: '#94a3b8', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif' }}>
+        <div>Initializing TrueBase Ledger Pipelines...</div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ backgroundColor: '#090d16', color: '#f3f4f6', minHeight: '100vh', fontFamily: 'sans-serif', padding: '24px' }}>
