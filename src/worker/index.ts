@@ -31,36 +31,32 @@ function checkWashSale(exitDate: string, exitPrice: number) {
 
 // LIVE SYNC ENGINE: XRPL Architecture
 async function syncBlockchainTransactions(wallets: string[]) {
-  // In production, this uses fetch('https://s1.ripple.com:51234') or Bithomp API
-  // Mocking a payload return for a newly detected transaction
   const mockXRPLResponse = [
     { 
       hash: 'A1B2C3...', 
       date: '2026-05-25', 
-      asset: 'XRP', // Engine filters out any non-XRP assets here
+      asset: 'XRP', 
       amount: 1500, 
       sender: wallets[0], 
       receiver: wallets[1] || 'ExternalWallet',
-      marketPriceAtTime: 0.58 // Retrieved from Historical Price API (e.g. CoinGecko)
+      marketPriceAtTime: 0.58 
     }
   ];
 
   let addedCount = 0;
 
   mockXRPLResponse.forEach(tx => {
-    if (tx.asset !== 'XRP') return; // Strict asset isolation
+    if (tx.asset !== 'XRP') return; 
 
-    // DCA Preservation: Check if sender and receiver are both owned by the user
     const isInternalMove = wallets.includes(tx.sender) && wallets.includes(tx.receiver);
     
-    let txType = isInternalMove ? 'Self-Transfer' : 'Purchase'; // Simplified logic
+    let txType = isInternalMove ? 'Self-Transfer' : 'Purchase'; 
     let status = isInternalMove ? 'Non-Taxable Flow' : 'Settled';
     let priceString = isInternalMove ? '--' : `$${tx.marketPriceAtTime}`;
     let feeString = isInternalMove ? '$0.00' : `$${(tx.amount * tx.marketPriceAtTime * 0.006).toFixed(2)}`;
     let netString = isInternalMove ? '--' : `$${(tx.amount * tx.marketPriceAtTime).toFixed(2)}`;
 
     if (!isInternalMove) {
-      // If it's a real purchase, add to tax lots
       internalLots.push({
         id: internalLots.length + 1,
         date: tx.date,
@@ -116,3 +112,41 @@ app.post('/api/transactions', async (c) => {
   const { type, venue, amount, price, manualFee, date, method, knownWallets } = body;
 
   if (type === 'Sync-Blockchain') {
+    const count = await syncBlockchainTransactions(knownWallets || []);
+    return c.json({ success: true, count });
+  }
+
+  const parsedAmount = parseFloat(amount) || 0;
+  const parsedPrice = parseFloat(price) || 0;
+  const grossValue = parsedAmount * parsedPrice;
+  const currentFeeRate = globalVolume >= TIER_TARGET ? 0.40 : 0.60;
+  let finalFee = manualFee ? parseFloat(manualFee) : grossValue * (currentFeeRate / 100);
+  let washSaleDetected = false;
+
+  if (type === 'Profit-Taking Exit') {
+    washSaleDetected = checkWashSale(date, parsedPrice);
+    let remainingToExhaust = parsedAmount;
+    let sortedLots = [...internalLots].filter(l => l.remainingAmount > 0);
+    if (method === 'FIFO') sortedLots.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    else if (method === 'LIFO') sortedLots.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    else if (method === 'HIFO') sortedLots.sort((a,b) => b.price - a.price);
+
+    for (let lot of sortedLots) {
+      if (remainingToExhaust <= 0) break;
+      const target = internalLots.find(l => l.id === lot.id);
+      if (target) {
+        const exhaust = Math.min(target.remainingAmount, remainingToExhaust);
+        target.remainingAmount -= exhaust;
+        remainingToExhaust -= exhaust;
+      }
+    }
+  } else if (type === 'Purchase') {
+    globalVolume += grossValue;
+    internalLots.push({ id: internalLots.length + 1, date: date || '2026-05-26', initialAmount: parsedAmount, remainingAmount: parsedAmount, price: parsedPrice, fee: finalFee });
+  }
+
+  ledgerData.push({ id: ledgerData.length + 1, date: date || '2026-05-26', asset: 'XRP', type, venue, amount: parsedAmount.toLocaleString(), price: `$${parsedPrice}`, fee: `$${finalFee.toFixed(2)}`, net: `$${(grossValue - finalFee).toFixed(2)}`, status: 'Settled' });
+  return c.json({ success: true, washSaleDetected });
+});
+
+export default app;
