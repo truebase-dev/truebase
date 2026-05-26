@@ -3,52 +3,67 @@ import { useState, useEffect } from 'react';
 export default function App() {
   const [isTrueBaseClean, setIsTrueBaseClean] = useState(true);
   const [thirtyDayVolume, setThirtyDayVolume] = useState(8500);
-  const [metrics, setMetrics] = useState<any>(null);
+  const [ledger, setLedger] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch real-time metrics from your live Hono backend engine
-  useEffect(() => {
+  // Form States
+  const [txType, setTxType] = useState('Purchase');
+  const [venue, setVenue] = useState('Coinbase Advanced');
+  const [amount, setAmount] = useState('');
+  const [price, setPrice] = useState('');
+
+  const fetchState = () => {
     fetch('/api/analytics')
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
-          setMetrics(data.metrics);
           setThirtyDayVolume(data.metrics.thirtyDayVolume);
+          setLedger(data.ledger);
         }
         setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Error linking to backend engine:", err);
-        setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    fetchState();
   }, []);
 
-  // Recalculate tier targets dynamically if user tests the volume slider
-  const TIER_TARGET = metrics?.tierTarget || 10000;
-  const BASE_FEE = metrics?.currentFee || 0.60;
+  const handleInject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!amount || !price) return;
+
+    const response = await fetch('/api/transactions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: txType, venue, amount, price })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      setAmount('');
+      setPrice('');
+      fetchState(); // Instantly refresh UI state from server math
+    }
+  };
+
+  const TIER_TARGET = 10000;
+  const BASE_FEE = 0.60;
   const NEXT_TIER_FEE = 0.40;
-  
   const feeGap = Math.max(0, TIER_TARGET - thirtyDayVolume);
   const currentFee = thirtyDayVolume >= TIER_TARGET ? NEXT_TIER_FEE : BASE_FEE;
   const progressPercent = Math.min(100, (thirtyDayVolume / TIER_TARGET) * 100);
 
-  const ledgerData = [
-    { id: 1, asset: 'XRP', type: 'Purchase', venue: 'Coinbase Advanced', amount: '10,000', dca: '$0.50', status: 'Settled' },
-    { id: 2, asset: 'XRP', type: 'Self-Transfer', venue: 'Coinbase → Robinhood', amount: '5,000', dca: isTrueBaseClean ? '$0.50 (Locked)' : '$0.58 (Corrupted)', status: 'Non-Taxable Flow' },
-    { id: 3, asset: 'XRP', type: 'Purchase', venue: 'Coinbase Advanced', amount: '2,500', dca: isTrueBaseClean ? '$0.51' : '$0.64 (Skewed)', status: 'Settled' }
-  ];
-
   if (loading) {
     return (
       <div style={{ backgroundColor: '#090d16', color: '#94a3b8', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif' }}>
-        <div>Initializing TrueBase Ledger Pipelines...</div>
+        <div>Syncing Ledger Engine...</div>
       </div>
     );
   }
 
   return (
     <div style={{ backgroundColor: '#090d16', color: '#f3f4f6', minHeight: '100vh', fontFamily: 'sans-serif', padding: '24px' }}>
-      {/* Upper Volume Tier Progress Bar */}
+      {/* Volume Optimization Banner */}
       <div style={{ border: '1px solid #1e293b', backgroundColor: '#0f172a', padding: '16px', borderRadius: '12px', marginBottom: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
           <div>
@@ -62,78 +77,58 @@ export default function App() {
           </span>
         </div>
         <div style={{ backgroundColor: '#1e293b', borderRadius: '9999px', height: '8px', overflow: 'hidden' }}>
-          <div style={{ backgroundColor: '#3b82f6', width: `${progressPercent}%`, height: '100%', transition: 'width 0.3s' }}></div>
+          <div style={{ backgroundColor: '#3b82f6', width: `${progressPercent}%`, height: '100%' }}></div>
         </div>
       </div>
 
-      {/* Title & Engine State Controller */}
+      {/* Control Panel Title */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
         <div>
           <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: '0 0 4px 0', letterSpacing: '-0.05em' }}>TRUEBASE</h1>
-          <p style={{ color: '#64748b', margin: 0, fontSize: '14px' }}>Mathematical Ledger Provenance & Separation Engine</p>
+          <p style={{ color: '#64748b', margin: 0, fontSize: '14px' }}>Mathematical Ledger Provenance Engine</p>
         </div>
-        
         <div style={{ backgroundColor: '#0f172a', padding: '4px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-          <button 
-            onClick={() => setIsTrueBaseClean(false)}
-            style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: !isTrueBaseClean ? '#ef4444' : 'transparent', color: '#fff', fontWeight: 'bold' }}
-          >
-            Legacy View
-          </button>
-          <button 
-            onClick={() => setIsTrueBaseClean(true)}
-            style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: isTrueBaseClean ? '#10b981' : 'transparent', color: '#fff', fontWeight: 'bold', marginLeft: '4px' }}
-          >
-            TrueBase Clean
-          </button>
+          <button onClick={() => setIsTrueBaseClean(false)} style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: !isTrueBaseClean ? '#ef4444' : 'transparent', color: '#fff', fontWeight: 'bold' }}>Legacy</button>
+          <button onClick={() => setIsTrueBaseClean(true)} style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: isTrueBaseClean ? '#10b981' : 'transparent', color: '#fff', fontWeight: 'bold', marginLeft: '4px' }}>TrueBase Clean</button>
         </div>
       </div>
 
-      {/* State Indicators & Volume Simulators */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '32px' }}>
-        <div style={{ backgroundColor: '#0f172a', padding: '20px', borderRadius: '12px', border: '1px solid #1e293b' }}>
-          <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Portfolio Tracking State</span>
-          <h2 style={{ fontSize: '24px', margin: '8px 0 0 0', color: isTrueBaseClean ? '#10b981' : '#ef4444' }}>
-            {isTrueBaseClean ? 'DCA Integrity Locked' : 'DCA Drift Detected'}
-          </h2>
-        </div>
-        <div style={{ backgroundColor: '#0f172a', padding: '20px', borderRadius: '12px', border: '1px solid #1e293b' }}>
-          <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Interactive Simulated Volume</span>
-          <input 
-            type="range" 
-            min="0" 
-            max="15000" 
-            value={thirtyDayVolume} 
-            onChange={(e) => setThirtyDayVolume(Number(e.target.value))}
-            style={{ width: '100%', marginTop: '16px', cursor: 'pointer' }}
-          />
-          <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px', textAlign: 'right' }}>${thirtyDayVolume.toLocaleString()} / $10,000</div>
-        </div>
+      {/* Transaction Injector Form Deck */}
+      <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px', marginBottom: '32px' }}>
+        <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', color: '#f3f4f6' }}>Execute Isolated Ledger Entry</h3>
+        <form onSubmit={handleInject} style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+          <select value={txType} onChange={(e) => { setTxType(e.target.value); setVenue(e.target.value === 'Self-Transfer' ? 'Coinbase → Robinhood' : 'Coinbase Advanced'); }} style={{ flex: '1 minmax(150px, 1fr)', padding: '10px', backgroundColor: '#090d16', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px' }}>
+            <option value="Purchase">Asset Purchase</option>
+            <option value="Self-Transfer">Self-Transfer Flow</option>
+          </select>
+          <input type="number" placeholder="Token Amount" value={amount} onChange={(e) => setAmount(e.target.value)} style={{ flex: '1 minmax(120px, 1fr)', padding: '10px', backgroundColor: '#090d16', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px' }} />
+          <input type="number" step="0.01" placeholder="Execution Price ($)" value={price} onChange={(e) => setPrice(e.target.value)} style={{ flex: '1 minmax(120px, 1fr)', padding: '10px', backgroundColor: '#090d16', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px' }} />
+          <button type="submit" style={{ padding: '10px 24px', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Inject Entry</button>
+        </form>
       </div>
 
-      {/* Isolated Asset Audit Trail */}
+      {/* Audit Trail Table */}
       <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #1e293b', overflow: 'hidden' }}>
-        <div style={{ padding: '20px', borderBottom: '1px solid #1e293b' }}>
-          <h3 style={{ margin: 0, fontSize: '16px' }}>Asset Audit Trail (Isolated Verification)</h3>
-        </div>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px', minWidth: '600px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid #1e293b', color: '#64748b' }}>
+              <tr style={{ borderBottom: '1px solid #1e293b', color: '#64748b', backgroundColor: '#0f172a' }}>
                 <th style={{ padding: '16px' }}>Asset</th>
-                <th style={{ padding: '16px' }}>Transaction Context</th>
+                <th style={{ padding: '16px' }}>Context</th>
                 <th style={{ padding: '16px' }}>Venue</th>
-                <th style={{ padding: '16px' }}>Calculated Cost Basis (DCA)</th>
-                <th style={{ padding: '16px' }}>Protocol Status</th>
+                <th style={{ padding: '16px' }}>Cost Basis (DCA)</th>
+                <th style={{ padding: '16px' }}>Status</th>
               </tr>
             </thead>
             <tbody>
-              {ledgerData.map((row) => (
-                <tr key={row.id} style={{ borderBottom: '1px solid #0f172a', backgroundColor: '#0b111e' }}>
+              {ledger.map((row) => (
+                <tr key={row.id} style={{ borderBottom: '1px solid #1e293b', backgroundColor: '#0b111e' }}>
                   <td style={{ padding: '16px', fontWeight: 'bold' }}>{row.asset}</td>
                   <td style={{ padding: '16px' }}>{row.type}</td>
                   <td style={{ padding: '16px', color: '#94a3b8' }}>{row.venue}</td>
-                  <td style={{ padding: '16px', fontFamily: 'monospace', color: isTrueBaseClean ? '#fff' : '#f87171' }}>{row.dca}</td>
+                  <td style={{ padding: '16px', fontFamily: 'monospace', color: isTrueBaseClean || row.type !== 'Self-Transfer' ? '#fff' : '#f87171' }}>
+                    {isTrueBaseClean ? row.dca : (row.type === 'Self-Transfer' ? '$0.58 (Corrupted)' : row.dca)}
+                  </td>
                   <td style={{ padding: '16px' }}>
                     <span style={{ backgroundColor: row.type === 'Self-Transfer' && isTrueBaseClean ? '#064e3b' : '#1e293b', color: row.type === 'Self-Transfer' && isTrueBaseClean ? '#34d399' : '#94a3b8', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}>
                       {row.status}
