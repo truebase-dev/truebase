@@ -19,6 +19,12 @@ export default function App() {
   const [targetPrice2, setTargetPrice2] = useState('16000');
   const [targetPrice3, setTargetPrice3] = useState('21000');
 
+  // NEW: Tax & Haircut Parameters
+  const [estimatedCostBasis, setEstimatedCostBasis] = useState('0.50');
+  const [federalTaxRate, setFederalTaxRate] = useState('15');
+  const [stateTaxRate, setStateTaxRate] = useState('4.9');
+  const [applyHaircut, setApplyHaircut] = useState(true);
+
   const fetchState = () => {
     fetch('/api/analytics')
       .then((res) => res.json())
@@ -59,17 +65,16 @@ export default function App() {
   const feeGap = Math.max(0, TIER_TARGET - thirtyDayVolume);
   const progressPercent = Math.min(100, (thirtyDayVolume / TIER_TARGET) * 100);
 
-  // Group dynamic state targets for map rendering
   const customMilestones = [
-    { label: 'Custom Horizon Alpha', currentVal: targetPrice1, setVal: setTargetPrice1 },
-    { label: 'Custom Horizon Beta', currentVal: targetPrice2, setVal: setTargetPrice2 },
-    { label: 'Custom Horizon Gamma', currentVal: targetPrice3, setVal: setTargetPrice3 }
+    { label: 'Horizon Target Alpha', currentVal: targetPrice1, setVal: setTargetPrice1 },
+    { label: 'Horizon Target Beta', currentVal: targetPrice2, setVal: setTargetPrice2 },
+    { label: 'Horizon Target Gamma', currentVal: targetPrice3, setVal: setTargetPrice3 }
   ];
 
   if (loading) {
     return (
       <div style={{ backgroundColor: '#090d16', color: '#94a3b8', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif' }}>
-        <div>Syncing Matrix Architecture...</div>
+        <div>Syncing Ledger Architecture...</div>
       </div>
     );
   }
@@ -111,57 +116,86 @@ export default function App() {
       <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px', marginBottom: '32px' }}>
         <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', color: '#f3f4f6' }}>Execute Isolated Ledger Entry</h3>
         <form onSubmit={handleInject} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
             <select value={txType} onChange={(e) => { setTxType(e.target.value); setVenue(e.target.value === 'Self-Transfer' ? 'Coinbase → Robinhood' : 'Coinbase Advanced'); }} style={{ flex: '1 minmax(180px, 1fr)', padding: '12px', backgroundColor: '#090d16', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px' }}>
               <option value="Purchase">Asset Purchase</option>
               <option value="Profit-Taking Exit">Profit-Taking Exit</option>
               <option value="Self-Transfer">Self-Transfer Flow</option>
             </select>
-            
             <input type="number" placeholder="Token Amount" value={amount} onChange={(e) => setAmount(e.target.value)} style={{ flex: '1 minmax(140px, 1fr)', padding: '12px', backgroundColor: '#090d16', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px' }} />
-            
             {txType !== 'Self-Transfer' && (
               <input type="number" step="0.0001" placeholder={txType === 'Profit-Taking Exit' ? "Exit Price ($)" : "Purchase Price ($)"} value={price} onChange={(e) => setPrice(e.target.value)} style={{ flex: '1 minmax(140px, 1fr)', padding: '12px', backgroundColor: '#090d16', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px' }} />
             )}
           </div>
-
           {txType === 'Profit-Taking Exit' && (
             <div style={{ borderTop: '1px solid #1e293b', paddingTop: '16px' }}>
               <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '6px' }}>Manual Fee Paid (Leave blank to auto-calculate at {currentFeeRate}%):</label>
               <input type="number" step="0.01" placeholder="Exact fee value paid ($)" value={manualFee} onChange={(e) => setManualFee(e.target.value)} style={{ width: '100%', maxWidth: '300px', padding: '12px', backgroundColor: '#090d16', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px' }} />
             </div>
           )}
-
           <button type="submit" style={{ width: '100%', maxWidth: '200px', padding: '12px', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-start' }}>Inject Entry</button>
         </form>
       </div>
 
-      {/* Upgraded: Unlocked Variable Exit Matrix */}
+      {/* Dynamic Target Exit Modeler with Capital Preservation Controls */}
       <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px', marginBottom: '32px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: '16px', color: '#f3f4f6' }}>Dynamic Target Exit Modeler</h3>
-            <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>Change the position scale or overwrite the exit values inside any card to re-verify capital preservation parameters.</p>
+        <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', color: '#f3f4f6' }}>Dynamic Target Exit & Capital Preservation Deck</h3>
+        <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: '#64748b' }}>Configure parameters below to review localized liability deductions and absolute take-home positions.</p>
+        
+        {/* Unified Modeling Inputs Layout */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', backgroundColor: '#090d16', padding: '16px', borderRadius: '8px', border: '1px solid #1e293b', marginBottom: '24px' }}>
+          <div style={{ flex: '1 minmax(140px, 1fr)' }}>
+            <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Position Scale:</label>
+            <input type="number" value={simulatedTokens} onChange={(e) => setSimulatedTokens(e.target.value)} style={{ width: '100%', padding: '8px', backgroundColor: '#0f172a', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px', fontFamily: 'monospace' }} />
           </div>
-          <div>
-            <label style={{ fontSize: '12px', color: '#94a3b8', marginRight: '8px' }}>Position Size:</label>
-            <input type="number" value={simulatedTokens} onChange={(e) => setSimulatedTokens(e.target.value)} style={{ width: '130px', padding: '10px', backgroundColor: '#090d16', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold' }} />
+          <div style={{ flex: '1 minmax(140px, 1fr)' }}>
+            <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Est. Cost Basis ($):</label>
+            <input type="number" step="0.01" value={estimatedCostBasis} onChange={(e) => setEstimatedCostBasis(e.target.value)} style={{ width: '100%', padding: '8px', backgroundColor: '#0f172a', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px', fontFamily: 'monospace' }} />
+          </div>
+          <div style={{ flex: '1 minmax(110px, 1fr)' }}>
+            <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Federal Tax (%):</label>
+            <input type="number" value={federalTaxRate} onChange={(e) => setFederalTaxRate(e.target.value)} style={{ width: '100%', padding: '8px', backgroundColor: '#0f172a', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px', fontFamily: 'monospace' }} />
+          </div>
+          <div style={{ flex: '1 minmax(110px, 1fr)' }}>
+            <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>State Tax (%):</label>
+            <input type="number" value={stateTaxRate} onChange={(e) => setStateTaxRate(e.target.value)} style={{ width: '100%', padding: '8px', backgroundColor: '#0f172a', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px', fontFamily: 'monospace' }} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', minWidth: '180px', marginTop: '20px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#f3f4f6', cursor: 'pointer' }}>
+              <input type="checkbox" checked={applyHaircut} onChange={(e) => setApplyHaircut(e.target.checked)} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
+              Apply 10% Profit Haircut
+            </label>
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
+        {/* Dynamic Cards Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
           {customMilestones.map((milestone, idx) => {
             const tokens = parseFloat(simulatedTokens) || 0;
             const customPrice = parseFloat(milestone.currentVal) || 0;
+            const basis = parseFloat(estimatedCostBasis) || 0;
             
             const grossValue = tokens * customPrice;
+            const totalCostBasis = tokens * basis;
             const projectedFee = grossValue * (currentFeeRate / 100);
-            const netRealized = grossValue - projectedFee;
+            
+            // Calculate raw crypto profit before deductions
+            const rawProfit = Math.max(0, grossValue - totalCostBasis - projectedFee);
+            
+            // Apply 10% haircut rules exclusively to profit calculations if checked
+            const haircutAmount = applyHaircut ? rawProfit * 0.10 : 0;
+            const taxableProfit = Math.max(0, rawProfit - haircutAmount);
+            
+            // Tax reconciliations
+            const fedTaxLiability = taxableProfit * ((parseFloat(federalTaxRate) || 0) / 100);
+            const stateTaxLiability = taxableProfit * ((parseFloat(stateTaxRate) || 0) / 100);
+            const totalTaxDeduction = fedTaxLiability + stateTaxLiability;
+
+            const netTakeHome = grossValue - projectedFee - haircutAmount - totalTaxDeduction;
 
             return (
               <div key={idx} style={{ backgroundColor: '#090d16', border: '1px solid #1e293b', borderRadius: '8px', padding: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                   <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#3b82f6', textTransform: 'uppercase' }}>{milestone.label}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <span style={{ color: '#64748b', fontSize: '12px' }}>$</span>
@@ -174,17 +208,31 @@ export default function App() {
                   </div>
                 </div>
                 
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                  <span style={{ color: '#64748b', fontSize: '13px' }}>Gross Liquidation:</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Gross Liquidation:</span>
                   <span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>${grossValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', borderBottom: '1px dashed #1e293b', paddingBottom: '8px' }}>
-                  <span style={{ color: '#64748b', fontSize: '13px' }}>Exchange Fee ({currentFeeRate}%):</span>
+                
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Exchange Fee ({currentFeeRate}%):</span>
                   <span style={{ color: '#f87171', fontFamily: 'monospace' }}>-${projectedFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
+
+                {applyHaircut && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
+                    <span style={{ color: '#64748b' }}>10% Strategic Haircut:</span>
+                    <span style={{ color: '#f87171', fontFamily: 'monospace' }}>-${haircutAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', borderBottom: '1px dashed #1e293b', paddingBottom: '8px', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>Est. Capital Gains Tax:</span>
+                  <span style={{ color: '#f87171', fontFamily: 'monospace' }}>-${totalTaxDeduction.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: '#f3f4f6', fontSize: '14px', fontWeight: 'bold' }}>Net Value:</span>
-                  <span style={{ color: '#10b981', fontSize: '16px', fontWeight: 'bold', fontFamily: 'monospace' }}>${netRealized.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span style={{ color: '#f3f4f6', fontSize: '14px', fontWeight: 'bold' }}>Net Take-Home:</span>
+                  <span style={{ color: '#10b981', fontSize: '16px', fontWeight: 'bold', fontFamily: 'monospace' }}>${netTakeHome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               </div>
             );
