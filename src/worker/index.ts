@@ -7,7 +7,7 @@ app.use('/*', cors());
 let globalVolume = 8500;
 const TIER_TARGET = 10000;
 
-// Internal mutable tax lot registry tracking remaining token availability per lot
+// Central Registry: Tracks absolute state of every tax lot
 let internalLots = [
   { id: 1, date: '2025-02-15', initialAmount: 10000, remainingAmount: 10000, price: 0.50, fee: 30.00 },
   { id: 2, date: '2026-03-10', initialAmount: 2500, remainingAmount: 2500, price: 0.55, fee: 8.25 }
@@ -21,8 +21,6 @@ let ledgerData = [
 
 function recalculateLiveMetrics() {
   const currentFeeRate = globalVolume >= TIER_TARGET ? 0.40 : 0.60;
-  const feeGap = Math.max(0, TIER_TARGET - globalVolume);
-
   let totalSpentOnRemaining = 0;
   let totalRemainingTokens = 0;
 
@@ -34,9 +32,11 @@ function recalculateLiveMetrics() {
     }
   });
 
-  const dynamicDCA = totalRemainingTokens > 0 ? (totalSpentOnRemaining / totalRemainingTokens) : 0.51;
-
-  return { feeGap, currentFeeRate, dynamicDCA, totalRemainingTokens };
+  return { 
+    currentFeeRate, 
+    dynamicDCA: totalRemainingTokens > 0 ? (totalSpentOnRemaining / totalRemainingTokens) : 0.51, 
+    totalRemainingTokens 
+  };
 }
 
 app.get('/api/analytics', (c) => {
@@ -45,9 +45,7 @@ app.get('/api/analytics', (c) => {
     success: true,
     metrics: {
       thirtyDayVolume: globalVolume,
-      feeGap: metrics.feeGap,
       currentFee: metrics.currentFeeRate,
-      tierTarget: TIER_TARGET,
       dynamicDCA: metrics.dynamicDCA,
       totalTokensAccumulated: metrics.totalRemainingTokens
     },
@@ -59,78 +57,38 @@ app.get('/api/analytics', (c) => {
 app.post('/api/transactions', async (c) => {
   const body = await c.req.json();
   const { type, venue, amount, price, manualFee, date, method } = body;
-
   const parsedAmount = parseFloat(amount) || 0;
   const parsedPrice = parseFloat(price) || 0;
   const grossValue = parsedAmount * parsedPrice;
   const currentFeeRate = globalVolume >= TIER_TARGET ? 0.40 : 0.60;
   
-  let finalFee = 0;
-  let netValue = 0;
-  let status = 'Settled';
-  const entryDate = date && date.trim() !== '' ? date : '2026-05-26';
+  let finalFee = manualFee ? parseFloat(manualFee) : grossValue * (currentFeeRate / 100);
+  const entryDate = date || '2026-05-26';
 
-  if (type === 'Self-Transfer') {
-    finalFee = 0;
-    status = 'Non-Taxable Flow';
-  } else if (type === 'Profit-Taking Exit') {
-    status = 'Realized Exit';
-    finalFee = manualFee && manualFee.trim() !== '' ? parseFloat(manualFee) : grossValue * (currentFeeRate / 100);
-    netValue = grossValue - finalFee;
-
-    // Permanent Lot Exhaustion Logic based on front-end selection method
+  if (type === 'Profit-Taking Exit') {
     let remainingToExhaust = parsedAmount;
-    const sortedLots = [...internalLots].filter(l => l.remainingAmount > 0);
-
-    if (method === 'FIFO') {
-      sortedLots.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    } else if (method === 'LIFO') {
-      sortedLots.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    } else if (method === 'HIFO') {
-      sortedLots.sort((a, b) => b.price - a.price);
-    }
+    let sortedLots = [...internalLots].filter(l => l.remainingAmount > 0);
+    
+    if (method === 'FIFO') sortedLots.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    else if (method === 'LIFO') sortedLots.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    else if (method === 'HIFO') sortedLots.sort((a,b) => b.price - a.price);
 
     for (let lot of sortedLots) {
       if (remainingToExhaust <= 0) break;
-      const targetLot = internalLots.find(l => l.id === lot.id);
-      if (targetLot) {
-        const exhaust = Math.min(targetLot.remainingAmount, remainingToExhaust);
-        targetLot.remainingAmount -= exhaust;
+      const target = internalLots.find(l => l.id === lot.id);
+      if (target) {
+        const exhaust = Math.min(target.remainingAmount, remainingToExhaust);
+        target.remainingAmount -= exhaust;
         remainingToExhaust -= exhaust;
       }
     }
-  } else {
-    // Standard purchase adds a new tracked tax lot pool permanently
-    finalFee = grossValue * (currentFeeRate / 100);
-    netValue = grossValue + finalFee;
+  } else if (type === 'Purchase') {
     globalVolume += grossValue;
-
-    const newLotId = internalLots.length + 1;
-    internalLots.push({
-      id: newLotId,
-      date: entryDate,
-      initialAmount: parsedAmount,
-      remainingAmount: parsedAmount,
-      price: parsedPrice,
-      fee: finalFee
-    });
+    internalLots.push({ id: internalLots.length + 1, date: entryDate, initialAmount: parsedAmount, remainingAmount: parsedAmount, price: parsedPrice, fee: finalFee });
   }
 
-  const newEntry = {
-    id: ledgerData.length + 1,
-    date: entryDate,
-    asset: 'XRP',
-    type,
-    venue,
-    amount: parsedAmount.toLocaleString(),
-    price: parsedPrice > 0 ? `$${parsedPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '--',
-    fee: `$${finalFee.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-    net: type === 'Self-Transfer' ? '--' : `$${netValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-    status
-  };
-
-  ledgerData.push(newEntry);
-  return c.json({ success: true, entry: newEntry });
+  ledgerData.push({ id: ledgerData.length + 1, date: entryDate, asset: 'XRP', type, venue, amount: parsedAmount.toLocaleString(), price: `$${parsedPrice}`, fee: `$${finalFee.toFixed(2)}`, net: `$${(grossValue - finalFee).toFixed(2)}`, status: 'Settled' });
+  return c.json({ success: true });
 });
 
 export default app;
