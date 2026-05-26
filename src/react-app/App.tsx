@@ -8,6 +8,9 @@ export default function App() {
   const [dbLots, setDbLots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Sync Input State
+  const [infrastructureNodes, setInfrastructureNodes] = useState('rMyWalletAddress1, rMyWalletAddress2');
+
   // Form states
   const [txType, setTxType] = useState('Purchase');
   const [venue, setVenue] = useState('Coinbase Advanced');
@@ -38,6 +41,18 @@ export default function App() {
     fetchState();
   }, []);
 
+  const handleSync = async () => {
+    const walletArray = infrastructureNodes.split(',').map(w => w.trim());
+    const res = await fetch('/api/transactions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'Sync-Blockchain', knownWallets: walletArray })
+    });
+    const result = await res.json();
+    alert(`Live Sync Complete. Integrated ${result.count} new verifiable transactions.`);
+    fetchState();
+  };
+
   const handleInject = async (e: React.FormEvent) => {
     e.preventDefault();
     const response = await fetch('/api/transactions', {
@@ -52,7 +67,6 @@ export default function App() {
     fetchState();
   };
 
-  // Regulatory Export Engine
   const generateIRS8949Export = () => {
     const headers = ["Description", "Date Acquired", "Date Sold", "Proceeds", "Cost Basis", "Gain/Loss"];
     const rows = ledger
@@ -71,11 +85,26 @@ export default function App() {
     a.click();
   };
 
-  if (loading) return <div>Syncing Tax Lot Matrix...</div>;
+  if (loading) return <div>Initializing Ledger Infrastructure...</div>;
 
   return (
     <div style={{ padding: '24px', backgroundColor: '#090d16', color: '#fff', minHeight: '100vh' }}>
-      <h1>TRUEBASE</h1>
+      <h1>TRUEBASE: Master Vault</h1>
+      
+      {/* Infrastructure Node Sync UI */}
+      <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#1e293b', borderRadius: '8px' }}>
+        <h3>Network Sync Engine</h3>
+        <p style={{ fontSize: '12px', color: '#94a3b8' }}>Define internal custody addresses to preserve DCA on self-transfers.</p>
+        <input 
+          value={infrastructureNodes} 
+          onChange={(e) => setInfrastructureNodes(e.target.value)} 
+          style={{ width: '400px', padding: '8px', marginRight: '10px' }} 
+        />
+        <button onClick={handleSync} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', border: 'none', color: 'white', borderRadius: '4px', cursor: 'pointer' }}>
+          Execute Chain Sync
+        </button>
+      </div>
+
       <button onClick={generateIRS8949Export} style={{ marginBottom: '20px', padding: '10px', backgroundColor: '#10b981', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
         Download IRS 8949 Report
       </button>
@@ -87,19 +116,24 @@ export default function App() {
         </select>
         <input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Amount" />
         <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price" />
-        <button type="submit">Inject Entry</button>
+        <button type="submit">Inject Manual Entry</button>
       </form>
 
       <table style={{ width: '100%', borderCollapse: 'collapse', color: '#94a3b8' }}>
         <thead>
-          <tr>
-            <th>Date</th><th>Type</th><th>Amount</th><th>Price</th><th>Net</th>
+          <tr style={{ textAlign: 'left', borderBottom: '1px solid #334155' }}>
+            <th>Date</th><th>Type</th><th>Venue</th><th>Amount</th><th>Price</th><th>Net</th>
           </tr>
         </thead>
         <tbody>
           {ledger.map((row) => (
-            <tr key={row.id}>
-              <td>{row.date}</td><td>{row.type}</td><td>{row.amount}</td><td>{row.price}</td><td>{row.net}</td>
+            <tr key={row.id} style={{ borderBottom: '1px solid #1e293b' }}>
+              <td style={{ padding: '8px 0' }}>{row.date}</td>
+              <td style={{ color: row.type === 'Self-Transfer' ? '#94a3b8' : '#e2e8f0' }}>{row.type}</td>
+              <td>{row.venue}</td>
+              <td>{row.amount}</td>
+              <td>{row.price}</td>
+              <td>{row.net}</td>
             </tr>
           ))}
         </tbody>
