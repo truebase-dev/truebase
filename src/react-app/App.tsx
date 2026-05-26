@@ -189,3 +189,9 @@ export default function App() {
     </div>
   );
 }
+<button 
+  onClick={() => window.open('/api/report', '_blank')} 
+  style={{ padding: '10px 15px', backgroundColor: '#3b82f6', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer' }}
+>
+  Generate PDF Vault Report
+</button>
