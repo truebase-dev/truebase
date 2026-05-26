@@ -6,12 +6,18 @@ export default function App() {
   const [ledger, setLedger] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Input states
+  // Transaction Input states
   const [txType, setTxType] = useState('Purchase');
   const [venue, setVenue] = useState('Coinbase Advanced');
   const [amount, setAmount] = useState('');
   const [price, setPrice] = useState('');
   const [manualFee, setManualFee] = useState('');
+
+  // Unlocked Target Simulation States
+  const [simulatedTokens, setSimulatedTokens] = useState('10000');
+  const [targetPrice1, setTargetPrice1] = useState('8000');
+  const [targetPrice2, setTargetPrice2] = useState('16000');
+  const [targetPrice3, setTargetPrice3] = useState('21000');
 
   const fetchState = () => {
     fetch('/api/analytics')
@@ -53,10 +59,17 @@ export default function App() {
   const feeGap = Math.max(0, TIER_TARGET - thirtyDayVolume);
   const progressPercent = Math.min(100, (thirtyDayVolume / TIER_TARGET) * 100);
 
+  // Group dynamic state targets for map rendering
+  const customMilestones = [
+    { label: 'Custom Horizon Alpha', currentVal: targetPrice1, setVal: setTargetPrice1 },
+    { label: 'Custom Horizon Beta', currentVal: targetPrice2, setVal: setTargetPrice2 },
+    { label: 'Custom Horizon Gamma', currentVal: targetPrice3, setVal: setTargetPrice3 }
+  ];
+
   if (loading) {
     return (
       <div style={{ backgroundColor: '#090d16', color: '#94a3b8', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif' }}>
-        <div>Syncing Calculation Framework...</div>
+        <div>Syncing Matrix Architecture...</div>
       </div>
     );
   }
@@ -64,7 +77,7 @@ export default function App() {
   return (
     <div style={{ backgroundColor: '#090d16', color: '#f3f4f6', minHeight: '100vh', fontFamily: 'sans-serif', padding: '24px' }}>
       
-      {/* Tier Progress Deck */}
+      {/* Volume Optimization Banner */}
       <div style={{ border: '1px solid #1e293b', backgroundColor: '#0f172a', padding: '16px', borderRadius: '12px', marginBottom: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
           <div>
@@ -94,7 +107,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Unified Input Deck */}
+      {/* Transaction Injector Form Deck */}
       <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px', marginBottom: '32px' }}>
         <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', color: '#f3f4f6' }}>Execute Isolated Ledger Entry</h3>
         <form onSubmit={handleInject} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -124,7 +137,62 @@ export default function App() {
         </form>
       </div>
 
-      {/* Upgraded Audit Log */}
+      {/* Upgraded: Unlocked Variable Exit Matrix */}
+      <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px', marginBottom: '32px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '16px', color: '#f3f4f6' }}>Dynamic Target Exit Modeler</h3>
+            <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>Change the position scale or overwrite the exit values inside any card to re-verify capital preservation parameters.</p>
+          </div>
+          <div>
+            <label style={{ fontSize: '12px', color: '#94a3b8', marginRight: '8px' }}>Position Size:</label>
+            <input type="number" value={simulatedTokens} onChange={(e) => setSimulatedTokens(e.target.value)} style={{ width: '130px', padding: '10px', backgroundColor: '#090d16', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold' }} />
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
+          {customMilestones.map((milestone, idx) => {
+            const tokens = parseFloat(simulatedTokens) || 0;
+            const customPrice = parseFloat(milestone.currentVal) || 0;
+            
+            const grossValue = tokens * customPrice;
+            const projectedFee = grossValue * (currentFeeRate / 100);
+            const netRealized = grossValue - projectedFee;
+
+            return (
+              <div key={idx} style={{ backgroundColor: '#090d16', border: '1px solid #1e293b', borderRadius: '8px', padding: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#3b82f6', textTransform: 'uppercase' }}>{milestone.label}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ color: '#64748b', fontSize: '12px' }}>$</span>
+                    <input 
+                      type="number" 
+                      value={milestone.currentVal} 
+                      onChange={(e) => milestone.setVal(e.target.value)} 
+                      style={{ width: '90px', padding: '6px', backgroundColor: '#0f172a', color: '#fff', border: '1px solid #1e293b', borderRadius: '4px', fontFamily: 'monospace', fontWeight: 'bold', textAlign: 'right' }} 
+                    />
+                  </div>
+                </div>
+                
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <span style={{ color: '#64748b', fontSize: '13px' }}>Gross Liquidation:</span>
+                  <span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>${grossValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', borderBottom: '1px dashed #1e293b', paddingBottom: '8px' }}>
+                  <span style={{ color: '#64748b', fontSize: '13px' }}>Exchange Fee ({currentFeeRate}%):</span>
+                  <span style={{ color: '#f87171', fontFamily: 'monospace' }}>-${projectedFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#f3f4f6', fontSize: '14px', fontWeight: 'bold' }}>Net Value:</span>
+                  <span style={{ color: '#10b981', fontSize: '16px', fontWeight: 'bold', fontFamily: 'monospace' }}>${netRealized.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Audit Log Table */}
       <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #1e293b', overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
