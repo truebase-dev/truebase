@@ -6,11 +6,12 @@ export default function App() {
   const [ledger, setLedger] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Form States
+  // Input states
   const [txType, setTxType] = useState('Purchase');
   const [venue, setVenue] = useState('Coinbase Advanced');
   const [amount, setAmount] = useState('');
   const [price, setPrice] = useState('');
+  const [manualFee, setManualFee] = useState('');
 
   const fetchState = () => {
     fetch('/api/analytics')
@@ -30,50 +31,50 @@ export default function App() {
 
   const handleInject = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || !price) return;
+    if (!amount || (txType !== 'Self-Transfer' && !price)) return;
 
     const response = await fetch('/api/transactions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: txType, venue, amount, price })
+      body: JSON.stringify({ type: txType, venue, amount, price, manualFee })
     });
 
     const result = await response.json();
     if (result.success) {
       setAmount('');
       setPrice('');
-      fetchState(); // Instantly refresh UI state from server math
+      setManualFee('');
+      fetchState();
     }
   };
 
   const TIER_TARGET = 10000;
-  const BASE_FEE = 0.60;
-  const NEXT_TIER_FEE = 0.40;
+  const currentFeeRate = thirtyDayVolume >= TIER_TARGET ? 0.40 : 0.60;
   const feeGap = Math.max(0, TIER_TARGET - thirtyDayVolume);
-  const currentFee = thirtyDayVolume >= TIER_TARGET ? NEXT_TIER_FEE : BASE_FEE;
   const progressPercent = Math.min(100, (thirtyDayVolume / TIER_TARGET) * 100);
 
   if (loading) {
     return (
       <div style={{ backgroundColor: '#090d16', color: '#94a3b8', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif' }}>
-        <div>Syncing Ledger Engine...</div>
+        <div>Syncing Calculation Framework...</div>
       </div>
     );
   }
 
   return (
     <div style={{ backgroundColor: '#090d16', color: '#f3f4f6', minHeight: '100vh', fontFamily: 'sans-serif', padding: '24px' }}>
-      {/* Volume Optimization Banner */}
+      
+      {/* Tier Progress Deck */}
       <div style={{ border: '1px solid #1e293b', backgroundColor: '#0f172a', padding: '16px', borderRadius: '12px', marginBottom: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
           <div>
             <span style={{ fontSize: '14px', color: '#94a3b8' }}>Volume Optimization Tier</span>
             <h3 style={{ margin: '4px 0 0 0', fontSize: '18px', fontWeight: 'bold' }}>
-              {feeGap > 0 ? `You are $${feeGap.toLocaleString()} away from dropping to a ${NEXT_TIER_FEE}% maker fee.` : `Maximum Fee Optimization Active: ${currentFee}%`}
+              {feeGap > 0 ? `You are $${feeGap.toLocaleString()} away from dropping to a 0.40% maker fee.` : `Maximum Fee Optimization Active: ${currentFeeRate}%`}
             </h3>
           </div>
           <span style={{ backgroundColor: '#1e3a8a', color: '#60a5fa', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' }}>
-            Current Fee: {currentFee}%
+            Current Rate: {currentFeeRate}%
           </span>
         </div>
         <div style={{ backgroundColor: '#1e293b', borderRadius: '9999px', height: '8px', overflow: 'hidden' }}>
@@ -81,11 +82,11 @@ export default function App() {
         </div>
       </div>
 
-      {/* Control Panel Title */}
+      {/* Header Deck */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
         <div>
           <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: '0 0 4px 0', letterSpacing: '-0.05em' }}>TRUEBASE</h1>
-          <p style={{ color: '#64748b', margin: 0, fontSize: '14px' }}>Mathematical Ledger Provenance Engine</p>
+          <p style={{ color: '#64748b', margin: 0, fontSize: '14px' }}>Dynamic Profit & Fee Mitigation Ledger</p>
         </div>
         <div style={{ backgroundColor: '#0f172a', padding: '4px', borderRadius: '8px', border: '1px solid #1e293b' }}>
           <button onClick={() => setIsTrueBaseClean(false)} style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: !isTrueBaseClean ? '#ef4444' : 'transparent', color: '#fff', fontWeight: 'bold' }}>Legacy</button>
@@ -93,21 +94,37 @@ export default function App() {
         </div>
       </div>
 
-      {/* Transaction Injector Form Deck */}
+      {/* Unified Input Deck */}
       <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px', marginBottom: '32px' }}>
         <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', color: '#f3f4f6' }}>Execute Isolated Ledger Entry</h3>
-        <form onSubmit={handleInject} style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-          <select value={txType} onChange={(e) => { setTxType(e.target.value); setVenue(e.target.value === 'Self-Transfer' ? 'Coinbase → Robinhood' : 'Coinbase Advanced'); }} style={{ flex: '1 minmax(150px, 1fr)', padding: '10px', backgroundColor: '#090d16', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px' }}>
-            <option value="Purchase">Asset Purchase</option>
-            <option value="Self-Transfer">Self-Transfer Flow</option>
-          </select>
-          <input type="number" placeholder="Token Amount" value={amount} onChange={(e) => setAmount(e.target.value)} style={{ flex: '1 minmax(120px, 1fr)', padding: '10px', backgroundColor: '#090d16', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px' }} />
-          <input type="number" step="0.01" placeholder="Execution Price ($)" value={price} onChange={(e) => setPrice(e.target.value)} style={{ flex: '1 minmax(120px, 1fr)', padding: '10px', backgroundColor: '#090d16', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px' }} />
-          <button type="submit" style={{ padding: '10px 24px', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Inject Entry</button>
+        <form onSubmit={handleInject} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+            <select value={txType} onChange={(e) => { setTxType(e.target.value); setVenue(e.target.value === 'Self-Transfer' ? 'Coinbase → Robinhood' : 'Coinbase Advanced'); }} style={{ flex: '1 minmax(180px, 1fr)', padding: '12px', backgroundColor: '#090d16', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px' }}>
+              <option value="Purchase">Asset Purchase</option>
+              <option value="Profit-Taking Exit">Profit-Taking Exit</option>
+              <option value="Self-Transfer">Self-Transfer Flow</option>
+            </select>
+            
+            <input type="number" placeholder="Token Amount" value={amount} onChange={(e) => setAmount(e.target.value)} style={{ flex: '1 minmax(140px, 1fr)', padding: '12px', backgroundColor: '#090d16', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px' }} />
+            
+            {txType !== 'Self-Transfer' && (
+              <input type="number" step="0.0001" placeholder={txType === 'Profit-Taking Exit' ? "Exit Price ($)" : "Purchase Price ($)"} value={price} onChange={(e) => setPrice(e.target.value)} style={{ flex: '1 minmax(140px, 1fr)', padding: '12px', backgroundColor: '#090d16', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px' }} />
+            )}
+          </div>
+
+          {txType === 'Profit-Taking Exit' && (
+            <div style={{ borderTop: '1px solid #1e293b', paddingTop: '16px' }}>
+              <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '6px' }}>Manual Fee Paid (Leave blank to auto-calculate at {currentFeeRate}%):</label>
+              <input type="number" step="0.01" placeholder="Exact fee value paid ($)" value={manualFee} onChange={(e) => setManualFee(e.target.value)} style={{ width: '100%', maxWidth: '300px', padding: '12px', backgroundColor: '#090d16', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px' }} />
+            </div>
+          )}
+
+          <button type="submit" style={{ width: '100%', maxWidth: '200px', padding: '12px', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-start' }}>Inject Entry</button>
         </form>
       </div>
 
-      {/* Audit Trail Table */}
+      {/* Upgraded Audit Log */}
       <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #1e293b', overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
@@ -116,8 +133,11 @@ export default function App() {
                 <th style={{ padding: '16px' }}>Asset</th>
                 <th style={{ padding: '16px' }}>Context</th>
                 <th style={{ padding: '16px' }}>Venue</th>
-                <th style={{ padding: '16px' }}>Cost Basis (DCA)</th>
-                <th style={{ padding: '16px' }}>Status</th>
+                <th style={{ padding: '16px', textAlign: 'right' }}>Amount</th>
+                <th style={{ padding: '16px', textAlign: 'right' }}>Execution Price</th>
+                <th style={{ padding: '16px', textAlign: 'right' }}>Fee Paid</th>
+                <th style={{ padding: '16px', textAlign: 'right' }}>Net Realized Value</th>
+                <th style={{ padding: '16px', textAlign: 'center' }}>Status</th>
               </tr>
             </thead>
             <tbody>
@@ -126,11 +146,18 @@ export default function App() {
                   <td style={{ padding: '16px', fontWeight: 'bold' }}>{row.asset}</td>
                   <td style={{ padding: '16px' }}>{row.type}</td>
                   <td style={{ padding: '16px', color: '#94a3b8' }}>{row.venue}</td>
-                  <td style={{ padding: '16px', fontFamily: 'monospace', color: isTrueBaseClean || row.type !== 'Self-Transfer' ? '#fff' : '#f87171' }}>
-                    {isTrueBaseClean ? row.dca : (row.type === 'Self-Transfer' ? '$0.58 (Corrupted)' : row.dca)}
+                  <td style={{ padding: '16px', textAlign: 'right', fontFamily: 'monospace' }}>{row.amount}</td>
+                  <td style={{ padding: '16px', textAlign: 'right', fontFamily: 'monospace' }}>{row.price}</td>
+                  <td style={{ padding: '16px', textAlign: 'right', fontFamily: 'monospace', color: '#f87171' }}>{row.fee}</td>
+                  <td style={{ padding: '16px', textAlign: 'right', fontFamily: 'monospace', color: row.type === 'Profit-Taking Exit' ? '#34d399' : '#fff' }}>
+                    {row.net}
                   </td>
-                  <td style={{ padding: '16px' }}>
-                    <span style={{ backgroundColor: row.type === 'Self-Transfer' && isTrueBaseClean ? '#064e3b' : '#1e293b', color: row.type === 'Self-Transfer' && isTrueBaseClean ? '#34d399' : '#94a3b8', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}>
+                  <td style={{ padding: '16px', textAlign: 'center' }}>
+                    <span style={{ 
+                      backgroundColor: row.type === 'Profit-Taking Exit' ? '#064e3b' : (row.type === 'Self-Transfer' ? '#1e293b' : '#1e3a8a'), 
+                      color: row.type === 'Profit-Taking Exit' ? '#34d399' : (row.type === 'Self-Transfer' ? '#94a3b8' : '#60a5fa'), 
+                      padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' 
+                    }}>
                       {row.status}
                     </span>
                   </td>
