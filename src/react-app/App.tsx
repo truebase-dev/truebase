@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 export default function App() {
   const [isTrueBaseClean, setIsTrueBaseClean] = useState(true);
   const [thirtyDayVolume, setThirtyDayVolume] = useState(8500);
+  const [liveDCA, setLiveDCA] = useState(0.51);
+  const [totalAccumulated, setTotalAccumulated] = useState(12500);
   const [ledger, setLedger] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -19,8 +21,8 @@ export default function App() {
   const [targetPrice2, setTargetPrice2] = useState('16000');
   const [targetPrice3, setTargetPrice3] = useState('21000');
 
-  // NEW: Tax & Haircut Parameters
-  const [estimatedCostBasis, setEstimatedCostBasis] = useState('0.50');
+  // Tax & Haircut Parameters
+  const [estimatedCostBasis, setEstimatedCostBasis] = useState('0.51');
   const [federalTaxRate, setFederalTaxRate] = useState('15');
   const [stateTaxRate, setStateTaxRate] = useState('4.9');
   const [applyHaircut, setApplyHaircut] = useState(true);
@@ -31,6 +33,10 @@ export default function App() {
       .then((data) => {
         if (data.success) {
           setThirtyDayVolume(data.metrics.thirtyDayVolume);
+          setLiveDCA(data.metrics.dynamicDCA);
+          setTotalAccumulated(data.metrics.totalTokensAccumulated);
+          // Set initial input state to match the auto-calculated DCA from the ledger logs
+          setEstimatedCostBasis(data.metrics.dynamicDCA.toFixed(4));
           setLedger(data.ledger);
         }
         setLoading(false);
@@ -60,6 +66,10 @@ export default function App() {
     }
   };
 
+  const syncCalculatedDCA = () => {
+    setEstimatedCostBasis(liveDCA.toFixed(4));
+  };
+
   const TIER_TARGET = 10000;
   const currentFeeRate = thirtyDayVolume >= TIER_TARGET ? 0.40 : 0.60;
   const feeGap = Math.max(0, TIER_TARGET - thirtyDayVolume);
@@ -74,7 +84,7 @@ export default function App() {
   if (loading) {
     return (
       <div style={{ backgroundColor: '#090d16', color: '#94a3b8', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif' }}>
-        <div>Syncing Ledger Architecture...</div>
+        <div>Syncing Unified Position Matrix...</div>
       </div>
     );
   }
@@ -82,21 +92,38 @@ export default function App() {
   return (
     <div style={{ backgroundColor: '#090d16', color: '#f3f4f6', minHeight: '100vh', fontFamily: 'sans-serif', padding: '24px' }}>
       
-      {/* Volume Optimization Banner */}
-      <div style={{ border: '1px solid #1e293b', backgroundColor: '#0f172a', padding: '16px', borderRadius: '12px', marginBottom: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
-          <div>
-            <span style={{ fontSize: '14px', color: '#94a3b8' }}>Volume Optimization Tier</span>
-            <h3 style={{ margin: '4px 0 0 0', fontSize: '18px', fontWeight: 'bold' }}>
-              {feeGap > 0 ? `You are $${feeGap.toLocaleString()} away from dropping to a 0.40% maker fee.` : `Maximum Fee Optimization Active: ${currentFeeRate}%`}
-            </h3>
+      {/* Dynamic Portfolio Status Blocks */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+        {/* Tier Control Card */}
+        <div style={{ border: '1px solid #1e293b', backgroundColor: '#0f172a', padding: '16px', borderRadius: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
+            <span style={{ fontSize: '13px', color: '#94a3b8' }}>30D Volume Tier Progress</span>
+            <span style={{ backgroundColor: '#1e3a8a', color: '#60a5fa', padding: '4px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>{currentFeeRate}%</span>
           </div>
-          <span style={{ backgroundColor: '#1e3a8a', color: '#60a5fa', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' }}>
-            Current Rate: {currentFeeRate}%
-          </span>
+          <div style={{ fontSize: '15px', fontWeight: 'bold', marginBottom: '8px' }}>
+            {feeGap > 0 ? `$${feeGap.toLocaleString()} to drop to 0.40%` : 'Max Optimization Active'}
+          </div>
+          <div style={{ backgroundColor: '#1e293b', borderRadius: '9999px', height: '6px', overflow: 'hidden' }}>
+            <div style={{ backgroundColor: '#3b82f6', width: `${progressPercent}%`, height: '100%' }}></div>
+          </div>
         </div>
-        <div style={{ backgroundColor: '#1e293b', borderRadius: '9999px', height: '8px', overflow: 'hidden' }}>
-          <div style={{ backgroundColor: '#3b82f6', width: `${progressPercent}%`, height: '100%' }}></div>
+
+        {/* Dynamic Cost-Basis Card */}
+        <div style={{ border: '1px solid #1e293b', backgroundColor: '#0f172a', padding: '16px', borderRadius: '12px' }}>
+          <span style={{ fontSize: '13px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Audited Ledger DCA</span>
+          <div style={{ fontSize: '22px', fontWeight: 'bold', fontFamily: 'monospace', color: '#38bdf8' }}>
+            ${liveDCA.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 })}
+          </div>
+          <span style={{ fontSize: '11px', color: '#64748b' }}>Derived strictly from settled buy volume</span>
+        </div>
+
+        {/* Dynamic Supply Card */}
+        <div style={{ border: '1px solid #1e293b', backgroundColor: '#0f172a', padding: '16px', borderRadius: '12px' }}>
+          <span style={{ fontSize: '13px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Total Settled Asset Volume</span>
+          <div style={{ fontSize: '22px', fontWeight: 'bold', fontFamily: 'monospace', color: '#a78bfa' }}>
+            {totalAccumulated.toLocaleString()} <span style={{ fontSize: '14px', color: '#64748b' }}>Tokens</span>
+          </div>
+          <span style={{ fontSize: '11px', color: '#64748b' }}>Excludes unverified network flows</span>
         </div>
       </div>
 
@@ -148,15 +175,18 @@ export default function App() {
             <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Position Scale:</label>
             <input type="number" value={simulatedTokens} onChange={(e) => setSimulatedTokens(e.target.value)} style={{ width: '100%', padding: '8px', backgroundColor: '#0f172a', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px', fontFamily: 'monospace' }} />
           </div>
-          <div style={{ flex: '1 minmax(140px, 1fr)' }}>
-            <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Est. Cost Basis ($):</label>
-            <input type="number" step="0.01" value={estimatedCostBasis} onChange={(e) => setEstimatedCostBasis(e.target.value)} style={{ width: '100%', padding: '8px', backgroundColor: '#0f172a', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px', fontFamily: 'monospace' }} />
+          <div style={{ flex: '1 minmax(160px, 1fr)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+              <label style={{ fontSize: '12px', color: '#94a3b8' }}>Cost Basis ($):</label>
+              <button onClick={syncCalculatedDCA} style={{ background: 'none', border: 'none', color: '#38bdf8', fontSize: '11px', cursor: 'pointer', padding: 0 }}>Sync Audited DCA</button>
+            </div>
+            <input type="number" step="0.0001" value={estimatedCostBasis} onChange={(e) => setEstimatedCostBasis(e.target.value)} style={{ width: '100%', padding: '8px', backgroundColor: '#0f172a', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px', fontFamily: 'monospace' }} />
           </div>
-          <div style={{ flex: '1 minmax(110px, 1fr)' }}>
+          <div style={{ flex: '1 minmax(100px, 1fr)' }}>
             <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Federal Tax (%):</label>
             <input type="number" value={federalTaxRate} onChange={(e) => setFederalTaxRate(e.target.value)} style={{ width: '100%', padding: '8px', backgroundColor: '#0f172a', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px', fontFamily: 'monospace' }} />
           </div>
-          <div style={{ flex: '1 minmax(110px, 1fr)' }}>
+          <div style={{ flex: '1 minmax(100px, 1fr)' }}>
             <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>State Tax (%):</label>
             <input type="number" value={stateTaxRate} onChange={(e) => setStateTaxRate(e.target.value)} style={{ width: '100%', padding: '8px', backgroundColor: '#0f172a', color: '#fff', border: '1px solid #1e293b', borderRadius: '6px', fontFamily: 'monospace' }} />
           </div>
@@ -179,14 +209,14 @@ export default function App() {
             const totalCostBasis = tokens * basis;
             const projectedFee = grossValue * (currentFeeRate / 100);
             
-            // Calculate raw crypto profit before deductions
+            // Raw profit calculation
             const rawProfit = Math.max(0, grossValue - totalCostBasis - projectedFee);
             
-            // Apply 10% haircut rules exclusively to profit calculations if checked
+            // Haircut rule applies uniquely to profit metrics
             const haircutAmount = applyHaircut ? rawProfit * 0.10 : 0;
             const taxableProfit = Math.max(0, rawProfit - haircutAmount);
             
-            // Tax reconciliations
+            // Tax projections
             const fedTaxLiability = taxableProfit * ((parseFloat(federalTaxRate) || 0) / 100);
             const stateTaxLiability = taxableProfit * ((parseFloat(stateTaxRate) || 0) / 100);
             const totalTaxDeduction = fedTaxLiability + stateTaxLiability;
