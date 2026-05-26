@@ -9,20 +9,12 @@ app.use('/*', cors());
 const DB_PATH = resolve('./vault-ledger.json');
 const TIER_TARGET = 10000;
 
-// Initialize Local Database
 function initDB() {
   if (!existsSync(DB_PATH)) {
     const defaultData = {
       globalVolume: 8500,
-      internalLots: [
-        { id: 1, date: '2025-02-15', initialAmount: 10000, remainingAmount: 10000, price: 0.50, fee: 30.00 },
-        { id: 2, date: '2026-03-10', initialAmount: 2500, remainingAmount: 2500, price: 0.55, fee: 8.25 }
-      ],
-      ledgerData: [
-        { id: 1, date: '2025-02-15', asset: 'XRP', type: 'Purchase', venue: 'Coinbase Advanced', amount: '10,000', price: '$0.50', fee: '$30.00', net: '$5,030.00', status: 'Settled' },
-        { id: 2, date: '2025-06-01', asset: 'XRP', type: 'Self-Transfer', venue: 'Coinbase → Robinhood', amount: '5,000', price: '--', fee: '$0.00', net: '--', status: 'Non-Taxable Flow' },
-        { id: 3, date: '2026-03-10', asset: 'XRP', type: 'Purchase', venue: 'Coinbase Advanced', amount: '2,500', price: '$0.55', fee: '$8.25', net: '$1,383.25', status: 'Settled' }
-      ]
+      internalLots: [],
+      ledgerData: []
     };
     writeFileSync(DB_PATH, JSON.stringify(defaultData, null, 2), 'utf-8');
   }
@@ -47,50 +39,104 @@ function checkWashSale(exitDate: string, exitPrice: number, internalLots: any[])
   });
 }
 
-// LIVE SYNC ENGINE: XRPL Architecture
+// LIVE SYNC ENGINE: True XRPL & Market Data Integration
 async function syncBlockchainTransactions(wallets: string[], db: any) {
-  const mockXRPLResponse = [
-    { hash: 'A1B2C3...', date: '2026-05-25', asset: 'XRP', amount: 1500, sender: wallets[0], receiver: wallets[1] || 'ExternalWallet', marketPriceAtTime: 0.58 }
-  ];
-
   let addedCount = 0;
 
-  mockXRPLResponse.forEach(tx => {
-    if (tx.asset !== 'XRP') return; 
+  for (const wallet of wallets) {
+    if (!wallet) continue;
 
-    const isInternalMove = wallets.includes(tx.sender) && wallets.includes(tx.receiver);
-    let txType = isInternalMove ? 'Self-Transfer' : 'Purchase'; 
-    let status = isInternalMove ? 'Non-Taxable Flow' : 'Settled';
-    let priceString = isInternalMove ? '--' : `$${tx.marketPriceAtTime}`;
-    let feeString = isInternalMove ? '$0.00' : `$${(tx.amount * tx.marketPriceAtTime * 0.006).toFixed(2)}`;
-    let netString = isInternalMove ? '--' : `$${(tx.amount * tx.marketPriceAtTime).toFixed(2)}`;
-
-    if (!isInternalMove) {
-      db.internalLots.push({
-        id: db.internalLots.length + 1,
-        date: tx.date,
-        initialAmount: tx.amount,
-        remainingAmount: tx.amount,
-        price: tx.marketPriceAtTime,
-        fee: tx.amount * tx.marketPriceAtTime * 0.006
+    try {
+      // 1. Fetch real transactions from XRPL Public RPC
+      const xrplResponse = await fetch('https://s1.ripple.com:51234/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          method: 'account_tx',
+          params: [{ account: wallet, limit: 20 }] 
+        })
       });
-      db.globalVolume += (tx.amount * tx.marketPriceAtTime);
-    }
 
-    db.ledgerData.push({
-      id: db.ledgerData.length + 1,
-      date: tx.date,
-      asset: tx.asset,
-      type: txType,
-      venue: isInternalMove ? 'Internal Infrastructure' : 'External Sync',
-      amount: tx.amount.toLocaleString(),
-      price: priceString,
-      fee: feeString,
-      net: netString,
-      status: status
-    });
-    addedCount++;
-  });
+      const xrplData = await xrplResponse.json();
+      const transactions = xrplData.result?.transactions || [];
+
+      for (const txData of transactions) {
+        const tx = txData.tx;
+        
+        // Strict Asset Isolation: Only process standard XRP payments
+        if (tx.TransactionType !== 'Payment' || typeof tx.Amount !== 'string') continue;
+
+        const txHash = tx.hash;
+        
+        // Prevent Duplicates: Check if hash already exists in ledger
+        const alreadyExists = db.ledgerData.some((entry: any) => entry.hash === txHash);
+        if (alreadyExists) continue;
+
+        // Convert Ripple Epoch (starts Jan 1, 2000) to standard Unix format
+        const dateObj = new Date((tx.date + 946684800) * 1000);
+        const dateStr = dateObj.toISOString().split('T')[0]; 
+        const cgDate = `${dateObj.getDate().toString().padStart(2, '0')}-${(dateObj.getMonth() + 1).toString().padStart(2, '0')}-${dateObj.getFullYear()}`;
+
+        // Convert drops to XRP (1 XRP = 1,000,000 drops)
+        const amountXrp = parseInt(tx.Amount) / 1000000;
+
+        // Preserve DCA: Check internal movement
+        const isInternalMove = wallets.includes(tx.Account) && wallets.includes(tx.Destination);
+        
+        let marketPriceAtTime = 0;
+
+        if (!isInternalMove) {
+          // 2. Fetch Historical Price from CoinGecko API
+          try {
+            const cgResponse = await fetch(`https://api.coingecko.com/api/v3/coins/ripple/history?date=${cgDate}`);
+            const cgData = await cgResponse.json();
+            marketPriceAtTime = cgData.market_data?.current_price?.usd || 0.55; // fallback to .55 if API misses
+          } catch (e) {
+            console.error('Market API limit reached, applying fallback pricing.');
+            marketPriceAtTime = 0.55; 
+          }
+        }
+
+        let txType = isInternalMove ? 'Self-Transfer' : 'Purchase'; 
+        let status = isInternalMove ? 'Non-Taxable Flow' : 'Settled';
+        let priceString = isInternalMove ? '--' : `$${marketPriceAtTime.toFixed(4)}`;
+        let feeString = isInternalMove ? '$0.00' : `$${(amountXrp * marketPriceAtTime * 0.006).toFixed(2)}`;
+        let netString = isInternalMove ? '--' : `$${(amountXrp * marketPriceAtTime).toFixed(2)}`;
+
+        // Inject new purchase data
+        if (!isInternalMove && marketPriceAtTime > 0) {
+          db.internalLots.push({
+            id: db.internalLots.length + 1,
+            date: dateStr,
+            initialAmount: amountXrp,
+            remainingAmount: amountXrp,
+            price: marketPriceAtTime,
+            fee: amountXrp * marketPriceAtTime * 0.006
+          });
+          db.globalVolume += (amountXrp * marketPriceAtTime);
+        }
+
+        // Add to viewable ledger
+        db.ledgerData.push({
+          id: db.ledgerData.length + 1,
+          hash: txHash, 
+          date: dateStr,
+          asset: 'XRP',
+          type: txType,
+          venue: isInternalMove ? 'Internal Infrastructure' : 'XRPL Network Sync',
+          amount: amountXrp.toLocaleString(),
+          price: priceString,
+          fee: feeString,
+          net: netString,
+          status: status
+        });
+        
+        addedCount++;
+      }
+    } catch (error) {
+      console.error(`Error syncing wallet infrastructure.`, error);
+    }
+  }
 
   return addedCount;
 }
@@ -162,7 +208,7 @@ app.post('/api/transactions', async (c) => {
     db.internalLots.push({ id: db.internalLots.length + 1, date: date || '2026-05-26', initialAmount: parsedAmount, remainingAmount: parsedAmount, price: parsedPrice, fee: finalFee });
   }
 
-  db.ledgerData.push({ id: db.ledgerData.length + 1, date: date || '2026-05-26', asset: 'XRP', type, venue, amount: parsedAmount.toLocaleString(), price: `$${parsedPrice}`, fee: `$${finalFee.toFixed(2)}`, net: `$${(grossValue - finalFee).toFixed(2)}`, status: 'Settled' });
+  db.ledgerData.push({ id: db.ledgerData.length + 1, hash: `MANUAL-${Date.now()}`, date: date || '2026-05-26', asset: 'XRP', type, venue, amount: parsedAmount.toLocaleString(), price: `$${parsedPrice}`, fee: `$${finalFee.toFixed(2)}`, net: `$${(grossValue - finalFee).toFixed(2)}`, status: 'Settled' });
   
   saveDB(db);
   return c.json({ success: true, washSaleDetected });
