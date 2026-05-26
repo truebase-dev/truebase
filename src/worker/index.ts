@@ -13,11 +13,11 @@ let ledgerData = [
   { id: 3, asset: 'XRP', type: 'Purchase', venue: 'Coinbase Advanced', amount: '2,500', price: '$0.55', fee: '$8.25', net: '$1,383.25', status: 'Settled' }
 ];
 
-app.get('/api/analytics', (c) => {
-  const feeGap = Math.max(0, TIER_TARGET - globalVolume);
+// Calculation utility to preserve clean state mechanics
+function calculateMetrics() {
   const currentFeeRate = globalVolume >= TIER_TARGET ? 0.40 : 0.60;
+  const feeGap = Math.max(0, TIER_TARGET - globalVolume);
 
-  // Compute dynamic volume-weighted DCA from settled purchases only
   let totalSpent = 0;
   let totalTokensAccumulated = 0;
 
@@ -34,15 +34,20 @@ app.get('/api/analytics', (c) => {
 
   const dynamicDCA = totalTokensAccumulated > 0 ? (totalSpent / totalTokensAccumulated) : 0.51;
 
+  return { feeGap, currentFeeRate, dynamicDCA, totalTokensAccumulated };
+}
+
+app.get('/api/analytics', (c) => {
+  const metrics = calculateMetrics();
   return c.json({
     success: true,
-    metrics: { 
-      thirtyDayVolume: globalVolume, 
-      feeGap, 
-      currentFee: currentFeeRate, 
+    metrics: {
+      thirtyDayVolume: globalVolume,
+      feeGap: metrics.feeGap,
+      currentFee: metrics.currentFeeRate,
       tierTarget: TIER_TARGET,
-      dynamicDCA,
-      totalTokensAccumulated
+      dynamicDCA: metrics.dynamicDCA,
+      totalTokensAccumulated: metrics.totalTokensAccumulated
     },
     ledger: ledgerData
   });
@@ -55,9 +60,8 @@ app.post('/api/transactions', async (c) => {
   const parsedAmount = parseFloat(amount) || 0;
   const parsedPrice = parseFloat(price) || 0;
   const grossValue = parsedAmount * parsedPrice;
-
-  const currentFeeRate = globalVolume >= TIER_TARGET ? 0.40 : 0.60;
   
+  const currentFeeRate = globalVolume >= TIER_TARGET ? 0.40 : 0.60;
   let finalFee = 0;
   let netValue = 0;
   let status = 'Settled';
@@ -67,14 +71,9 @@ app.post('/api/transactions', async (c) => {
     status = 'Non-Taxable Flow';
   } else if (type === 'Profit-Taking Exit') {
     status = 'Realized Exit';
-    if (manualFee && manualFee.trim() !== '') {
-      finalFee = parseFloat(manualFee) || 0;
-    } else {
-      finalFee = grossValue * (currentFeeRate / 100);
-    }
+    finalFee = manualFee && manualFee.trim() !== '' ? parseFloat(manualFee) : grossValue * (currentFeeRate / 100);
     netValue = grossValue - finalFee;
   } else {
-    // Standard Purchase (Fee adds to total cost basis)
     finalFee = grossValue * (currentFeeRate / 100);
     netValue = grossValue + finalFee;
     globalVolume += grossValue;
@@ -94,6 +93,54 @@ app.post('/api/transactions', async (c) => {
 
   ledgerData.push(newEntry);
   return c.json({ success: true, entry: newEntry });
+});
+
+// NEW: Serverless Batch Processing Route
+app.post('/api/transactions/batch', async (c) => {
+  const body = await c.req.json();
+  const { records } = body; // Array of objects matching form values
+
+  if (!Array.isArray(records)) {
+    return c.json({ success: false, error: 'Invalid batch configuration payload.' }, 400);
+  }
+
+  records.forEach((rec) => {
+    const parsedAmount = parseFloat(rec.amount) || 0;
+    const parsedPrice = parseFloat(rec.price) || 0;
+    const grossValue = parsedAmount * parsedPrice;
+    
+    const currentFeeRate = globalVolume >= TIER_TARGET ? 0.40 : 0.60;
+    let finalFee = 0;
+    let netValue = 0;
+    let status = 'Settled';
+
+    if (rec.type === 'Self-Transfer') {
+      finalFee = 0;
+      status = 'Non-Taxable Flow';
+    } else if (rec.type === 'Profit-Taking Exit') {
+      status = 'Realized Exit';
+      finalFee = rec.manualFee && String(rec.manualFee).trim() !== '' ? parseFloat(rec.manualFee) : grossValue * (currentFeeRate / 100);
+      netValue = grossValue - finalFee;
+    } else {
+      finalFee = grossValue * (currentFeeRate / 100);
+      netValue = grossValue + finalFee;
+      globalVolume += grossValue; // Accumulate running 30D tracking metric
+    }
+
+    ledgerData.push({
+      id: ledgerData.length + 1,
+      asset: 'XRP',
+      type: rec.type,
+      venue: rec.venue,
+      amount: parsedAmount.toLocaleString(),
+      price: parsedPrice > 0 ? `$${parsedPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '--',
+      fee: `$${finalFee.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+      net: rec.type === 'Self-Transfer' ? '--' : `$${netValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+      status
+    });
+  });
+
+  return c.json({ success: true, count: records.length });
 });
 
 export default app;
