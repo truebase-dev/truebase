@@ -209,6 +209,15 @@ app.post('/api/transactions', async (c) => {
   }
 
   db.ledgerData.push({ id: db.ledgerData.length + 1, hash: `MANUAL-${Date.now()}`, date: date || '2026-05-26', asset: 'XRP', type, venue, amount: parsedAmount.toLocaleString(), price: `$${parsedPrice}`, fee: `$${finalFee.toFixed(2)}`, net: `$${(grossValue - finalFee).toFixed(2)}`, status: 'Settled' });
+  import { generateFinancialVaultReport } from './pdf-gen';
+
+app.get('/api/report', async (c) => {
+  const db = loadDB();
+  const pdfBuffer = await generateFinancialVaultReport(db);
+  return new Response(pdfBuffer, {
+    headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': 'attachment; filename="Vault_Report.pdf"' }
+  });
+});
   
   saveDB(db);
   return c.json({ success: true, washSaleDetected });
