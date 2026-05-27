@@ -7,10 +7,7 @@ export default function App() {
   const [ledger, setLedger] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Sync Input State
   const [infrastructureNodes, setInfrastructureNodes] = useState('rMyWalletAddress1, rMyWalletAddress2');
-
-  // Form states
   const [txType, setTxType] = useState('Purchase');
   const [venue, setVenue] = useState('Coinbase Advanced');
   const [amount, setAmount] = useState('');
@@ -20,7 +17,6 @@ export default function App() {
   const [taxMethod, setTaxMethod] = useState('FIFO'); 
   const [estimatedCostBasis, setEstimatedCostBasis] = useState('0.51');
 
-  // Projection State
   const [projectionTranche, setProjectionTranche] = useState(100); 
   const targetTiers = [5000, 8000, 16000, 21000];
 
@@ -39,9 +35,7 @@ export default function App() {
       });
   };
 
-  useEffect(() => {
-    fetchState();
-  }, []);
+  useEffect(() => { fetchState(); }, []);
 
   const handleSync = async () => {
     const walletArray = infrastructureNodes.split(',').map(w => w.trim());
@@ -73,11 +67,7 @@ export default function App() {
     const headers = ["Description", "Date Acquired", "Date Sold", "Proceeds", "Cost Basis", "Gain/Loss"];
     const rows = ledger
       .filter((tx) => tx.type === 'Profit-Taking Exit')
-      .map((tx) => [
-        `XRP - ${tx.venue}`, "VARIOUS", tx.date, 
-        tx.net.replace('$', '').replace(',', ''), estimatedCostBasis, "0.00"
-      ].join(","));
-
+      .map((tx) => [ `XRP - ${tx.venue}`, "VARIOUS", tx.date, tx.net.replace('$', '').replace(',', ''), estimatedCostBasis, "0.00" ].join(","));
     const csvContent = [headers.join(","), ...rows].join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -98,12 +88,7 @@ export default function App() {
           <h2 style={{ margin: 0, fontSize: '18px', color: '#38bdf8' }}>Target Trajectory Command Center</h2>
           <div>
             <label style={{ fontSize: '12px', marginRight: '10px', color: '#94a3b8' }}>XRP Tranche Size to Model:</label>
-            <input 
-              type="number" 
-              value={projectionTranche} 
-              onChange={(e) => setProjectionTranche(Number(e.target.value))} 
-              style={{ width: '100px', padding: '6px', backgroundColor: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '4px' }}
-            />
+            <input type="number" value={projectionTranche} onChange={(e) => setProjectionTranche(Number(e.target.value))} style={{ width: '100px', padding: '6px', backgroundColor: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '4px' }} />
           </div>
         </div>
 
@@ -112,10 +97,8 @@ export default function App() {
             const grossProceeds = projectionTranche * target;
             const costBasis = projectionTranche * liveDCA;
             const grossCryptoProfit = grossProceeds - costBasis;
-            
             const haircutAmount = grossCryptoProfit > 0 ? (grossCryptoProfit * 0.10) : 0;
             const taxableProfit = grossCryptoProfit - haircutAmount;
-            
             const estimatedTax = taxableProfit > 0 ? (taxableProfit * 0.24) : 0; 
             const netProfit = taxableProfit - estimatedTax;
 
@@ -141,19 +124,16 @@ export default function App() {
       <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#1e293b', borderRadius: '8px' }}>
         <h3 style={{ margin: '0 0 5px 0' }}>Network Sync Engine</h3>
         <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: 0 }}>Define internal custody addresses to preserve DCA on self-transfers.</p>
-        <input 
-          value={infrastructureNodes} 
-          onChange={(e) => setInfrastructureNodes(e.target.value)} 
-          style={{ width: '400px', padding: '8px', marginRight: '10px', backgroundColor: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '4px' }} 
-        />
-        <button onClick={handleSync} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', border: 'none', color: 'white', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-          Execute Chain Sync
-        </button>
+        <input value={infrastructureNodes} onChange={(e) => setInfrastructureNodes(e.target.value)} style={{ width: '400px', padding: '8px', marginRight: '10px', backgroundColor: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '4px' }} />
+        <button onClick={handleSync} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', border: 'none', color: 'white', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Execute Chain Sync</button>
       </div>
 
       <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
         <button onClick={generateIRS8949Export} style={{ padding: '10px 15px', backgroundColor: '#10b981', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', color: '#fff' }}>
           Download IRS 8949 Report
+        </button>
+        <button onClick={() => window.open('/api/report', '_blank')} style={{ padding: '10px 15px', backgroundColor: '#8b5cf6', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>
+          Generate PDF Vault Report
         </button>
       </div>
 
@@ -164,7 +144,7 @@ export default function App() {
         </select>
         <input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Amount" style={{ padding: '8px', borderRadius: '4px', border: '1px solid #334155', backgroundColor: '#0f172a', color: '#fff' }} />
         <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price" style={{ padding: '8px', borderRadius: '4px', border: '1px solid #334155', backgroundColor: '#0f172a', color: '#fff' }} />
-        <button type="submit" style={{ padding: '8px 16px', backgroundColor: '#8b5cf6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Inject Manual Entry</button>
+        <button type="submit" style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Inject Manual Entry</button>
       </form>
 
       <table style={{ width: '100%', borderCollapse: 'collapse', color: '#94a3b8', fontSize: '14px' }}>
@@ -189,9 +169,3 @@ export default function App() {
     </div>
   );
 }
-<button 
-  onClick={() => window.open('/api/report', '_blank')} 
-  style={{ padding: '10px 15px', backgroundColor: '#3b82f6', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer' }}
->
-  Generate PDF Vault Report
-</button>
